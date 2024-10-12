@@ -4,7 +4,6 @@ services:
     pull_policy: always
     restart: unless-stopped
     volumes:
-#      - c:\Users\pahan\PycharmProjects\finance-dashboard-backend\data\:/app/data
       - ./data:/app/data
     ports:
       - "8000:8000"
