@@ -19,3 +19,4 @@ SQLAlchemy==2.0.35
 starlette==0.38.6
 typing_extensions==4.12.2
 uvicorn==0.31.0
+watchfiles==0.24.0

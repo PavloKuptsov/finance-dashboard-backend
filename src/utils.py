@@ -2,9 +2,11 @@ import os
 from datetime import datetime
 from typing import Optional
 
+from src.config import DATA_PATH
+
 
 def get_latest_db_file():
-    return max([f.path for f in os.scandir('data') if f.path.endswith('.bak')])
+    return max([f.path for f in os.scandir(DATA_PATH) if f.path.endswith('.bak')])
 
 
 def timeframe_to_dates(year: int, month: Optional[int] = None) -> tuple[datetime, datetime]:
