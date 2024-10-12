@@ -1,14 +1,18 @@
 services:
   backend:
     image: pavlokuptsov/finance-dashboard-backend
+    pull_policy: always
+    restart: unless-stopped
     volumes:
 #      - c:\Users\pahan\PycharmProjects\finance-dashboard-backend\data\:/app/data
-      - /docker/dashboard:/app/data
+      - ./data:/app/data
     ports:
       - "8000:8000"
     command: uvicorn src.app:app --host 0.0.0.0 --port 8000 --reload --reload-include '*.bak'
 
   frontend:
     image: pavlokuptsov/finance-dashboard-frontend
+    pull_policy: always
+    restart: unless-stopped
     ports:
       - "3000:3000"
