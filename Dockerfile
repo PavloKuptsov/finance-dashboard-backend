@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 
 COPY ./src /app/src
 COPY ./sql /app/sql
+ENV TZ="Europe/Kyiv"
 
 EXPOSE 8000
 
