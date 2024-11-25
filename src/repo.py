@@ -111,7 +111,8 @@ async def get_cashflow(db: AsyncSession, year: int, month: Optional[int]):
 
 async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], threshold=4000):
     _from, _to = timeframe_to_timestamps(year, month)
-    timeframe = TF.DAY if month else TF.MONTH
+    timeframe, key = (TF.DAY, 2) if month else (TF.MONTH, 1)
+
 
     q_base = (
         select(func.cast(func.strftime('%Y', TransactionModel.timestamp, 'unixepoch', 'localtime'), Integer).label(TF.YEAR),
@@ -127,20 +128,39 @@ async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], thres
     q_raw = q_base.group_by(timeframe)
     res_raw = await db.execute(q_raw)
     result_raw = [i._tuple() for i in res_raw]
+    dict_raw = {res[key]: res for res in result_raw}
+    date_range = range(1, max(dict_raw.keys()) + 1)
 
     q_adjusted = q_base.where(func.abs(TransactionModel.amount) < threshold).group_by(timeframe)
     res_adjusted = await db.execute(q_adjusted)
     result_adjusted = [i._tuple() for i in res_adjusted]
+    dict_adjusted = {res[key]: res for res in result_adjusted}
 
     burn_rate_dict = {}
-    for i, item in enumerate(result_adjusted):
+    for i in date_range:
+        item = dict_raw.get(i)
         if timeframe ==TF.DAY:
-            br_period = BurnRateDay(item[0], item[1], item[2], 0, item[3])
-            br_period.raw_total = result_raw[i][3]
+            if item:
+                adjusted_for_day = dict_adjusted.get(item[2])
+                adjusted_total = adjusted_for_day[3] if adjusted_for_day else 0
+                br_period = BurnRateDay(year=item[0],
+                                        month=item[1],
+                                        day=item[2],
+                                        raw_total=item[3],
+                                        adjusted_total=adjusted_total)
+            else:
+                br_period = BurnRateDay(year=year, month=month, day=i, raw_total=0, adjusted_total=0)
             burn_rate_dict[br_period.label] = br_period
         else:
-            br_period = BurnRateMonth(item[0], item[1], 0, item[3])
-            br_period.raw_total = result_raw[i][3]
+            if item:
+                adjusted_for_month = dict_adjusted.get(item[1])
+                adjusted_total = adjusted_for_month[3] if adjusted_for_month else 0
+                br_period = BurnRateMonth(year=item[0],
+                                          month=item[1],
+                                          raw_total=item[3],
+                                          adjusted_total=adjusted_total)
+            else:
+                br_period = BurnRateMonth(year=year, month=month, raw_total=0, adjusted_total=0)
             _, days = monthrange(br_period.year, br_period.month)
             br_period.days = datetime.today().day if br_period.not_over else days
 
