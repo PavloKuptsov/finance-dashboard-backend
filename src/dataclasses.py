@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from typing import Optional
 
 
 class TF(StrEnum):
@@ -25,8 +26,8 @@ class CashFlowMonth:
 class BurnRateMonth:
     year: int
     month: int
-    raw_total: float = 0
-    adjusted_total: float = 0
+    raw_total: Optional[float] = None
+    adjusted_total: Optional[float] = None
     days: int = 0
 
     @property
@@ -52,8 +53,8 @@ class BurnRateDay:
     year: int
     month: int
     day: int
-    raw_total: float = 0
-    adjusted_total: float = 0
+    raw_total: Optional[float] = None
+    adjusted_total: Optional[float] = None
     days: int = 1
 
     @property

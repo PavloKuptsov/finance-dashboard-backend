@@ -142,25 +142,25 @@ async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], thres
         if timeframe ==TF.DAY:
             if item:
                 adjusted_for_day = dict_adjusted.get(item[2])
-                adjusted_total = adjusted_for_day[3] if adjusted_for_day else 0
+                adjusted_total = adjusted_for_day[3] if adjusted_for_day else None
                 br_period = BurnRateDay(year=item[0],
                                         month=item[1],
                                         day=item[2],
                                         raw_total=item[3],
                                         adjusted_total=adjusted_total)
             else:
-                br_period = BurnRateDay(year=year, month=month, day=i, raw_total=0, adjusted_total=0)
+                br_period = BurnRateDay(year=year, month=month, day=i, raw_total=None, adjusted_total=None)
             burn_rate_dict[br_period.label] = br_period
         else:
             if item:
                 adjusted_for_month = dict_adjusted.get(item[1])
-                adjusted_total = adjusted_for_month[3] if adjusted_for_month else 0
+                adjusted_total = adjusted_for_month[3] if adjusted_for_month else None
                 br_period = BurnRateMonth(year=item[0],
                                           month=item[1],
                                           raw_total=item[3],
                                           adjusted_total=adjusted_total)
             else:
-                br_period = BurnRateMonth(year=year, month=month, raw_total=0, adjusted_total=0)
+                br_period = BurnRateMonth(year=year, month=month, raw_total=None, adjusted_total=None)
             _, days = monthrange(br_period.year, br_period.month)
             br_period.days = datetime.today().day if br_period.not_over else days
 
