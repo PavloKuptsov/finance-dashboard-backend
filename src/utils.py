@@ -11,8 +11,8 @@ def get_latest_db_file():
 
 def timeframe_to_dates(year: int, month: Optional[int] = None) -> tuple[datetime, datetime]:
     if month:
-        d_from = datetime(year, month, 1)
-        d_to = datetime(year, month + 1, 1)
+        d_from = datetime(year, month % 12, 1)
+        d_to = datetime(year, (month + 1) % 12, 1)
     else:
         d_from = datetime(year, 1, 1)
         d_to = datetime(year + 1, 1, 1)
