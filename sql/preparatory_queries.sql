@@ -50,6 +50,16 @@ create table transactions
 );
 
 
+create table balance_history
+(
+    id             integer primary key,
+    account_id     integer,
+    transaction_id integer,
+    timestamp      integer,
+    balance        real
+);
+
+
 insert into currencies (id, name_short, symbol, is_default)
 values (10002, 'EUR', '€', 0),
        (10051, 'USD', '$', 0),

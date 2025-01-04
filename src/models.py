@@ -50,6 +50,9 @@ class AccountModel(Base):
 
     currency = relationship(Currency, backref='accounts', lazy='joined')
 
+    def __repr__(self):
+        return f'<AccountModel(id={self.id}, name={self.name})>'
+
 
 class CategoryModel(Base):
     __tablename__ = 'categories'
@@ -77,3 +80,15 @@ class TransactionModel(Base):
     is_scheduled = Column(Boolean)
 
     category = relationship(CategoryModel, backref='parent', lazy='joined')
+
+    def __repr__(self):
+        return f'<TransactionModel(timestamp={self.timestamp}, amount={self.amount})>'
+
+
+class BalanceHistoryModel(Base):
+    __tablename__ = 'balance_history'
+    id = Column(Integer, primary_key=True)
+    account_id = Column(Integer)
+    transaction_id = Column(Integer)
+    timestamp = Column(Integer)
+    balance = Column(Float)

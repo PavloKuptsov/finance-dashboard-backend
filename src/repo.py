@@ -2,18 +2,22 @@ from calendar import monthrange
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select, func, Integer
+from sqlalchemy import select, func, Integer, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .config import PREPARATORY_QUERIES_FILE
 from .dataclasses import CashFlowMonth, TF, BurnRateDay, BurnRateMonth, CategoryAmount, Category, Account, Transaction
-from .models import AccountModel, Currency, CategoryModel, TransactionModel, TransactionType, CategoryType
-from .utils import timeframe_to_timestamps
+from .models import AccountModel, Currency, CategoryModel, TransactionModel, TransactionType, CategoryType, \
+    BalanceHistoryModel
+from .utils import timeframe_to_timestamps, savings_separators
 
 
-async def get_accounts(db: AsyncSession, with_archived=False):
+async def get_accounts(db: AsyncSession, with_archived=False, currency_id=None):
     q = select(AccountModel).order_by(AccountModel.show_order)
     if not with_archived:
         q = q.where(AccountModel.is_archived.is_(with_archived))
+    if currency_id:
+        q = q.where(AccountModel.currency_id == currency_id)
     res = await db.execute(q)
     r = res.scalars().all()
     return r
@@ -245,3 +249,116 @@ async def get_biggest_expenses(db: AsyncSession, year: int, month: Optional[int]
             notes=tr.comment
         ))
     return transactions
+
+
+async def get_savings(db: AsyncSession, year: int):
+    _from, _to = timeframe_to_timestamps(year)
+    separators = savings_separators(year)
+    accounts = await get_accounts(db, currency_id=10051)
+    account_names = {acc.id: acc.name for acc in accounts}
+    colors = {acc.name: acc.color for acc in accounts}
+    colors['Total'] = 16777215
+
+    q = (
+        select(BalanceHistoryModel)
+        .where(BalanceHistoryModel.timestamp >= _from)
+        .where(BalanceHistoryModel.timestamp < _to)
+        .where(BalanceHistoryModel.account_id.in_(account_names.keys()))
+        .order_by(BalanceHistoryModel.timestamp.asc())
+    )
+
+    res = await db.execute(q)
+    balance_histories = res.scalars().all()
+    bh_per_account = {acc_id: {} for acc_id in account_names}
+    for bh in balance_histories:
+        bh_per_account[bh.account_id][bh.timestamp] = bh.balance
+
+    starting_balances = {}
+    for acc_id in account_names:
+        q = (
+            select(BalanceHistoryModel.balance)
+            .where(BalanceHistoryModel.account_id == acc_id)
+            .where(BalanceHistoryModel.timestamp < _from)
+            .order_by(BalanceHistoryModel.timestamp.desc())
+            .limit(1)
+        )
+        res = await db.execute(q)
+        starting_balances[acc_id] = res.scalar() or 0
+
+    labels = []
+    balances = {acc_name: [] for acc_name in account_names.values()}
+    balances['Total'] = []
+    for sep, timestamp in separators.items():
+        labels.append(sep)
+        total = 0
+        for acc_id, acc_name in account_names.items():
+            timestamps = [ts for ts in bh_per_account[acc_id].keys() if ts <= timestamp]
+            max_ts = max(timestamps) if timestamps else None
+            balance = bh_per_account[acc_id][max_ts] if max_ts else starting_balances[acc_id]
+            balances[acc_name].append(balance)
+            total += balance
+
+        balances['Total'].append(total)
+    change = balances['Total'][-1] - balances['Total'][0]
+
+    return {'labels': labels,
+            'colors': colors,
+            'data': balances,
+            'change': change}
+
+
+async def prepare_data(db: AsyncSession):
+    version_query = await db.execute(text('PRAGMA user_version;'))
+    version = version_query.scalar()
+    if version < 99:
+        with open(PREPARATORY_QUERIES_FILE) as f:
+            for stmt in f.read().split('\n\n'):
+                await db.execute(text(stmt))
+        await db.commit()
+
+        await compile_balances_history(db)
+
+
+async def compile_balances_history(db: AsyncSession):
+    accounts = await get_accounts(db, with_archived=True)
+    latest_balances = {acc.id: acc.starting_balance or 0 for acc in accounts}
+
+    q = (
+        select(TransactionModel)
+        .where(TransactionModel.is_scheduled.is_(False))
+        .order_by(TransactionModel.timestamp.asc())
+    )
+    res = await db.execute(q)
+    transactions = res.scalars().all()
+    for trans in transactions:
+        if trans.type == TransactionType.INCOME:
+            latest_balances[trans.account_id] += trans.amount
+            history = BalanceHistoryModel(account_id=trans.account_id,
+                                          transaction_id=trans.id,
+                                          timestamp=trans.timestamp,
+                                          balance=round(latest_balances[trans.account_id], 2))
+            db.add(history)
+        elif trans.type == TransactionType.EXPENSE:
+            latest_balances[trans.account_id] -= trans.amount
+            history = BalanceHistoryModel(account_id=trans.account_id,
+                                          transaction_id=trans.id,
+                                          timestamp=trans.timestamp,
+                                          balance=round(latest_balances[trans.account_id], 2))
+            db.add(history)
+        else:
+            latest_balances[trans.account_id] -= trans.amount
+            latest_balances[trans.destination_id] += trans.destination_amount
+            history1 = BalanceHistoryModel(account_id=trans.account_id,
+                                           transaction_id=trans.id,
+                                           timestamp=trans.timestamp,
+                                           balance=round(latest_balances[trans.account_id], 2))
+            history2 = BalanceHistoryModel(account_id=trans.destination_id,
+                                           transaction_id=trans.id,
+                                           timestamp=trans.timestamp,
+                                           balance=round(latest_balances[trans.destination_id], 2))
+            db.add(history1)
+            db.add(history2)
+
+        await db.flush()
+
+    await db.commit()

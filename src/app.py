@@ -2,25 +2,17 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from .app_data import app_data
 from .db import get_db
-from .config import PREPARATORY_QUERIES_FILE
+from .repo import prepare_data
 from .router import router
 
 
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     session = await get_db().__anext__()
-    version_query = await session.execute(text('PRAGMA user_version;'))
-    version = version_query.scalar()
-    if version < 99:
-        with open(PREPARATORY_QUERIES_FILE) as f:
-            for stmt in f.read().split('\n\n'):
-                await session.execute(text(stmt))
-        await session.commit()
-
+    await prepare_data(session)
     await app_data.get_exchange_rates(session)
     await session.close()
     yield
