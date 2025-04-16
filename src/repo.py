@@ -1,5 +1,5 @@
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import select, func, Integer, text
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .config import PREPARATORY_QUERIES_FILE
 from .dataclasses import CashFlowMonth, TF, BurnRateDay, BurnRateMonth, CategoryAmount, Category, Account, Transaction
 from .models import AccountModel, Currency, CategoryModel, TransactionModel, TransactionType, CategoryType, \
-    BalanceHistoryModel
+    BalanceHistoryModel, DailyBalanceHistoryModel
 from .utils import timeframe_to_timestamps, savings_separators
 
 
@@ -311,12 +311,16 @@ async def prepare_data(db: AsyncSession):
     version_query = await db.execute(text('PRAGMA user_version;'))
     version = version_query.scalar()
     if version < 99:
+        print('Translating the DB')
         with open(PREPARATORY_QUERIES_FILE) as f:
             for stmt in f.read().split('\n\n'):
                 await db.execute(text(stmt))
         await db.commit()
 
+        print('Compiling balance history')
         await compile_balances_history(db)
+        print('Compiling daily balance history')
+        await compile_daily_balance_history(db)
 
 
 async def compile_balances_history(db: AsyncSession):
@@ -362,3 +366,68 @@ async def compile_balances_history(db: AsyncSession):
         await db.flush()
 
     await db.commit()
+
+
+async def get_latest_balance_for_account_to_date(db: AsyncSession, account_id: int, timestamp: int):
+    q = (
+        select(BalanceHistoryModel.balance)
+        .where(BalanceHistoryModel.account_id == account_id)
+        .where(BalanceHistoryModel.timestamp <= timestamp)
+        .order_by(BalanceHistoryModel.timestamp.desc())
+        .limit(1)
+    )
+    res = await db.execute(q)
+    return res.scalar()
+
+
+async def get_first_transaction_timestamp(db: AsyncSession) -> datetime:
+    q = (
+        select(func.min(TransactionModel.timestamp))
+        .where(TransactionModel.is_scheduled.is_(False))
+    )
+    res = await db.execute(q)
+    return datetime.fromtimestamp(res.scalar())
+
+
+async def compile_daily_balance_history(db: AsyncSession):
+    accounts = await get_accounts(db, with_archived=True)
+    accounts_in_balance = {acc.id: acc for acc in accounts if acc.is_in_balance}
+
+    min_datetime = await get_first_transaction_timestamp(db) + timedelta(days=1)
+    current_datetime = datetime(min_datetime.year, min_datetime.month, min_datetime.day)
+
+    max_datetime = datetime.now() + timedelta(days=1)
+
+    while current_datetime < max_datetime:
+        balance = 0
+        timestamp = int(current_datetime.timestamp())
+        for acc in accounts_in_balance:
+            change = await get_latest_balance_for_account_to_date(db, acc, timestamp)
+            if change:
+                balance += change
+
+        history = DailyBalanceHistoryModel(timestamp=timestamp, balance=round(balance, 2))
+        db.add(history)
+        await db.flush()
+
+        current_datetime += timedelta(days=1)
+
+    await db.commit()
+
+
+async def get_daily_balance_history(db: AsyncSession, year: int, month: Optional[int]):
+    _from, _to = timeframe_to_timestamps(year, month)
+    q = (
+        select(DailyBalanceHistoryModel)
+        .where(DailyBalanceHistoryModel.timestamp >= _from)
+        .where(DailyBalanceHistoryModel.timestamp <= _to)
+        .order_by(DailyBalanceHistoryModel.timestamp.asc())
+    )
+
+    res = await db.execute(q)
+    daily_balance_histories = res.scalars().all()
+
+    labels = [datetime.fromtimestamp(bal.timestamp).day for bal in daily_balance_histories]
+    data = [bal.balance for bal in daily_balance_histories]
+
+    return {'labels': labels, 'data': data}

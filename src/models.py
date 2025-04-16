@@ -92,3 +92,10 @@ class BalanceHistoryModel(Base):
     transaction_id = Column(Integer)
     timestamp = Column(Integer)
     balance = Column(Float)
+
+
+class DailyBalanceHistoryModel(Base):
+    __tablename__ = 'daily_balance_history'
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(Integer)
+    balance = Column(Float)

@@ -60,6 +60,14 @@ create table balance_history
 );
 
 
+create table daily_balance_history
+(
+    id             integer primary key,
+    timestamp      integer,
+    balance        real
+);
+
+
 insert into currencies (id, name_short, symbol, is_default)
 values (10002, 'EUR', '€', 0),
        (10051, 'USD', '$', 0),
