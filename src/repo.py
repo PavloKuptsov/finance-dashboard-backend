@@ -375,7 +375,7 @@ async def get_latest_balance_for_account_to_date(db: AsyncSession, account_id: i
         select(BalanceHistoryModel.balance)
         .where(BalanceHistoryModel.account_id == account_id)
         .where(BalanceHistoryModel.timestamp <= timestamp)
-        .order_by(BalanceHistoryModel.timestamp.desc())
+        .order_by(BalanceHistoryModel.id.desc())
         .limit(1)
     )
     res = await db.execute(q)
