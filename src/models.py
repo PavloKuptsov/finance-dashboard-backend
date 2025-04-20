@@ -99,3 +99,12 @@ class DailyBalanceHistoryModel(Base):
     id = Column(Integer, primary_key=True)
     timestamp = Column(Integer)
     balance = Column(Float)
+
+
+class DailyAccountCashflowModel(Base):
+    __tablename__ = 'daily_account_cashflow'
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(Integer)
+    account_id = Column(Integer)
+    inflow = Column(Float)
+    outflow = Column(Float)

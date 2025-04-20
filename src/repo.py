@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .config import PREPARATORY_QUERIES_FILE
 from .dataclasses import CashFlowMonth, TF, BurnRateDay, BurnRateMonth, CategoryAmount, Category, Account, Transaction
 from .models import AccountModel, Currency, CategoryModel, TransactionModel, TransactionType, CategoryType, \
-    BalanceHistoryModel, DailyBalanceHistoryModel
+    BalanceHistoryModel, DailyBalanceHistoryModel, DailyAccountCashflowModel
 from .utils import timeframe_to_timestamps, savings_separators
 
 
@@ -321,6 +321,8 @@ async def prepare_data(db: AsyncSession):
         await compile_balances_history(db)
         print('Compiling daily balance history')
         await compile_daily_balance_history(db)
+        print('Compiling daily cashflow')
+        await compile_daily_cashflow(db)
 
 
 async def compile_balances_history(db: AsyncSession):
@@ -396,9 +398,7 @@ async def compile_daily_balance_history(db: AsyncSession):
     min_datetime = await get_first_transaction_timestamp(db) + timedelta(days=1)
     current_datetime = datetime(min_datetime.year, min_datetime.month, min_datetime.day)
 
-    max_datetime = datetime.now() + timedelta(days=1)
-
-    while current_datetime < max_datetime:
+    while current_datetime < datetime.now() + timedelta(days=1):
         balance = 0
         timestamp = int(current_datetime.timestamp())
         for acc in accounts_in_balance:
@@ -431,3 +431,70 @@ async def get_daily_balance_history(db: AsyncSession, year: int, month: Optional
     data = [bal.balance for bal in daily_balance_histories]
 
     return {'labels': labels, 'data': data}
+
+
+async def compile_daily_cashflow(db: AsyncSession):
+    accounts = await get_accounts(db)
+
+    min_datetime = await get_first_transaction_timestamp(db)
+    current_datetime = datetime(min_datetime.year, min_datetime.month, min_datetime.day)
+
+    while current_datetime < datetime.now() + timedelta(days=1):
+        previous_timestamp = int((current_datetime - timedelta(days=1)).timestamp())
+        current_timestamp = int(current_datetime.timestamp())
+        q = (
+            select(TransactionModel)
+            .where(TransactionModel.timestamp >= previous_timestamp)
+            .where(TransactionModel.timestamp < current_timestamp)
+            .where(TransactionModel.is_scheduled.is_(False))
+        )
+
+        res = await db.execute(q)
+        transactions = res.scalars().all()
+
+        for acc in accounts:
+            incomes = [trans.amount for trans in transactions
+                       if trans.account_id == acc.id and trans.type == TransactionType.INCOME]
+            expenses = [trans.amount for trans in transactions
+                        if trans.account_id == acc.id and trans.type == TransactionType.EXPENSE]
+            transfers_from = [trans.amount for trans in transactions
+                              if trans.account_id == acc.id and trans.type == TransactionType.TRANSFER]
+            transfers_to = [trans.destination_amount for trans in transactions
+                            if trans.destination_id == acc.id and trans.type == TransactionType.TRANSFER]
+
+            inflow = round(sum(incomes) + sum(transfers_to), 2)
+            outflow = round(sum(expenses) + sum(transfers_from), 2)
+
+            if inflow or outflow:
+                cashflow = DailyAccountCashflowModel(timestamp=previous_timestamp,
+                                                     account_id=acc.id,
+                                                     inflow=inflow,
+                                                     outflow=outflow)
+                db.add(cashflow)
+                await db.flush()
+
+        current_datetime += timedelta(days=1)
+    await db.commit()
+
+
+async def get_account_cashflow(db: AsyncSession, year: int, month: Optional[int]):
+    _from, _to = timeframe_to_timestamps(year, month)
+    q = (
+        select(
+            DailyAccountCashflowModel.account_id,
+            func.sum(DailyAccountCashflowModel.inflow),
+            func.sum(DailyAccountCashflowModel.outflow),
+        )
+        .where(DailyAccountCashflowModel.timestamp >= _from)
+        .where(DailyAccountCashflowModel.timestamp <= _to)
+        .group_by(DailyAccountCashflowModel.account_id)
+    )
+
+    res = await db.execute(q)
+    rows = [i._tuple() for i in res]
+
+    cashflows = {}
+    for row in rows:
+        cashflows[row[0]] = {'inflow': row[1], 'outflow': row[2]}
+
+    return cashflows

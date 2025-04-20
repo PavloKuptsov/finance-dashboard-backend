@@ -62,9 +62,18 @@ create table balance_history
 
 create table daily_balance_history
 (
-    id             integer primary key,
-    timestamp      integer,
-    balance        real
+    id          integer primary key,
+    timestamp   integer,
+    balance     real
+);
+
+create table daily_account_cashflow
+(
+    id          integer primary key,
+    timestamp   integer,
+    account_id  integer,
+    inflow      real,
+    outflow     real
 );
 
 

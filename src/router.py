@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .app_data import app_data
 from .db import get_db
 from .repo import get_accounts, get_categories, get_currencies, get_totals, get_cashflow, get_burn_rate, \
-    get_subcategory_amounts, get_category_amounts, get_biggest_expenses, get_savings, get_daily_balance_history
+    get_subcategory_amounts, get_category_amounts, get_biggest_expenses, get_savings, get_daily_balance_history, \
+    get_account_cashflow
 
 router = APIRouter()
 
@@ -69,3 +70,8 @@ async def savings(y: int, db: AsyncSession = Depends(get_db)):
 @router.get('/daily_balances')
 async def daily_balances(y: int, m: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     return await get_daily_balance_history(db, y, m)
+
+
+@router.get('/account_cashflows')
+async def account_cashflows(y: int, m: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    return await get_account_cashflow(db, y, m)
