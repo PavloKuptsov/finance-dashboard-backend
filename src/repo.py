@@ -133,7 +133,11 @@ async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], thres
     res_raw = await db.execute(q_raw)
     result_raw = [i._tuple() for i in res_raw]
     dict_raw = {res[key]: res for res in result_raw}
-    date_range = range(1, max(dict_raw.keys()) + 1)
+    if not dict_raw:
+        return {}
+
+    date_range = range(min(dict_raw.keys()) if dict_raw.keys() else 1,
+                       max(dict_raw.keys()) + 1 if dict_raw.keys() else 13)
 
     q_adjusted = q_base.where(func.abs(TransactionModel.amount) < threshold).group_by(timeframe)
     res_adjusted = await db.execute(q_adjusted)
