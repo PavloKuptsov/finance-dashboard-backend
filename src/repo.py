@@ -55,7 +55,7 @@ async def get_categories_dict(db: AsyncSession, with_subcategories=False):
 
 async def get_totals(db: AsyncSession, year: int, month: Optional[int]):
     _from, _to = timeframe_to_timestamps(year, month)
-    q_expenses = (select(func.sum(TransactionModel.amount))
+    q_expenses = (select(func.sum(TransactionModel.homogenized_amount))
                   .where(TransactionModel.type == TransactionType.EXPENSE)
                   .where(TransactionModel.timestamp >= _from)
                   .where(TransactionModel.timestamp < _to)
@@ -96,7 +96,7 @@ async def get_cashflow(db: AsyncSession, year: int, month: Optional[int]):
     res = await db.execute(q)
     result_income = [i._tuple() for i in res]
 
-    q = get_query(TransactionModel.amount, TransactionType.EXPENSE)
+    q = get_query(TransactionModel.homogenized_amount, TransactionType.EXPENSE)
     res = await db.execute(q)
     result_expense = [i._tuple() for i in res]
 
@@ -124,7 +124,7 @@ async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], thres
         select(func.cast(func.strftime('%Y', TransactionModel.timestamp, 'unixepoch', 'localtime'), Integer).label(TF.YEAR),
                func.cast(func.strftime('%m', TransactionModel.timestamp, 'unixepoch', 'localtime'), Integer).label(TF.MONTH),
                func.cast(func.strftime('%d', TransactionModel.timestamp, 'unixepoch', 'localtime'), Integer).label(TF.DAY),
-               func.sum(TransactionModel.amount))
+               func.sum(TransactionModel.homogenized_amount))
             .where(TransactionModel.type == TransactionType.EXPENSE)
             .where(TransactionModel.timestamp >= _from)
             .where(TransactionModel.timestamp < _to)
@@ -141,7 +141,7 @@ async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], thres
     date_range = range(min(dict_raw.keys()) if dict_raw.keys() else 1,
                        max(dict_raw.keys()) + 1 if dict_raw.keys() else 13)
 
-    q_adjusted = q_base.where(func.abs(TransactionModel.amount) < threshold).group_by(timeframe)
+    q_adjusted = q_base.where(func.abs(TransactionModel.homogenized_amount) < threshold).group_by(timeframe)
     res_adjusted = await db.execute(q_adjusted)
     result_adjusted = [i._tuple() for i in res_adjusted]
     dict_adjusted = {res[key]: res for res in result_adjusted}
@@ -185,7 +185,7 @@ async def get_subcategory_amounts(db: AsyncSession, year: int, month: Optional[i
                 CategoryModel.name,
                 CategoryModel.color,
                 CategoryModel.parent_category_id,
-                func.sum(TransactionModel.amount),
+                func.sum(TransactionModel.homogenized_amount),
                 ).join(TransactionModel)
          .where(TransactionModel.type == TransactionType.EXPENSE)
          .where(TransactionModel.timestamp >= _from)
@@ -239,7 +239,7 @@ async def get_biggest_expenses(db: AsyncSession, year: int, month: Optional[int]
         .where(TransactionModel.timestamp >= _from)
         .where(TransactionModel.timestamp < _to)
         .where(TransactionModel.is_scheduled.is_(False))
-        .order_by(TransactionModel.amount.desc())
+        .order_by(TransactionModel.homogenized_amount.desc())
         .limit(limit)
     )
     res = await db.execute(q)
@@ -251,7 +251,7 @@ async def get_biggest_expenses(db: AsyncSession, year: int, month: Optional[int]
             date=tr.timestamp,
             account=accounts[tr.account_id],
             category=categories[tr.destination_id],
-            amount=tr.amount,
+            amount=tr.homogenized_amount,
             notes=tr.comment
         ))
     return transactions

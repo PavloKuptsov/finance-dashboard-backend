@@ -73,9 +73,11 @@ class TransactionModel(Base):
     timestamp = Column(Integer)
     currency_id = Column(Integer)
     account_id = Column(Integer)
+    account_currency_id = Column(Integer)
     destination_id = Column(Integer, ForeignKey('categories.id'))
     amount = Column(Float)
     destination_amount = Column(Float)
+    homogenized_amount = Column(Float)
     comment = Column(String)
     is_scheduled = Column(Boolean)
 

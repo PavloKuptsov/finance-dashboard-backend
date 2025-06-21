@@ -36,17 +36,19 @@ create table currencies
 
 create table transactions
 (
-    id                 integer primary key,
-    type               integer,
-    timestamp          integer,
-    currency_id        integer,
-    account_id         integer,
-    destination_id     integer,
-    amount             real,
-    destination_amount real,
-    exchange_rate      real,
-    comment            text,
-    is_scheduled       boolean
+    id                  integer primary key,
+    type                integer,
+    timestamp           integer,
+    currency_id         integer,
+    account_id          integer,
+    account_currency_id integer,
+    destination_id      integer,
+    amount              real,
+    destination_amount  real,
+    exchange_rate       real,
+    homogenized_amount  real,
+    comment             text,
+    is_scheduled        boolean
 );
 
 
@@ -94,23 +96,35 @@ select  _id, _ty, _na, _ic, 16777216 + _co, _pi
 from de
 where _a_i_i_e is null and _b_i = (select max(_id) from ba);
 
-insert into transactions (id, type, timestamp, currency_id, account_id, destination_id, amount,
-                          destination_amount, exchange_rate, comment, is_scheduled)
-select _id, _ty, _da / 1000, _cr_i, _a_i, _d_i, _a_m,
-       _d_m, _c_f, _co, _sch
+insert into transactions (id, type, timestamp, currency_id, account_id, account_currency_id, destination_id, amount,
+                          destination_amount, exchange_rate, homogenized_amount, comment, is_scheduled)
+select tr._id, tr._ty, tr._da / 1000, tr._cr_i, tr._a_i, de._c_i,
+       tr._d_i, tr._a_m, tr._d_m, tr._c_f, tr._a_m,
+       tr._co, tr._sch
 from tr
-where _b_i = (select max(_id) from ba);
+left join de on tr._a_i = de._id
+where tr._b_i = (select max(_id) from ba) and de._b_i = (select max(_id) from ba);
 
 alter table transactions
-    add column curr_amount real;
+add column curr_amount real;
+
+update transactions
+set currency_id = account_currency_id
+where currency_id = 0;
 
 update transactions
 set type = 2
 where account_id in (select id from accounts) and destination_id in (select id from accounts);
 
 update transactions
+set homogenized_amount = destination_amount
+where account_currency_id != (
+        select currency_id from accounts where name = 'All accounts'
+    );
+
+update transactions
 set curr_amount = round(destination_amount * transactions.exchange_rate, 2)
-where exchange_rate < 1 and type = 0;
+where exchange_rate < 1 and type = 0 and currency_id != account_currency_id;
 
 update transactions
 set destination_amount = curr_amount
