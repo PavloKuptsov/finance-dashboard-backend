@@ -1,8 +1,8 @@
 from datetime import datetime
 
 
-AMOUNT_THRESHOLD = 4000
-DATA_PATH = '/app/data'
+BURN_RATE_AMOUNT_THRESHOLD = 4000
+MAX_TRANSACTION_AMOUNT_THRESHOLD = 1_000_000
 DATA_PATH = '/app/data'
 PREPARATORY_QUERIES_FILE = 'sql/preparatory_queries.sql'
 PB_EXCHANGE_ENDPOINT = 'https://api.privatbank.ua/p24api/exchange_rates?json&date={}'

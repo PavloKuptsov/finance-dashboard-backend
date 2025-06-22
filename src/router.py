@@ -44,7 +44,7 @@ async def cashflow(y: int, m: Optional[int] = None, db: AsyncSession = Depends(g
 
 @router.get('/burn_rate')
 async def burn_rate(y: int, m: Optional[int] = None, db: AsyncSession = Depends(get_db)):
-    return await get_burn_rate(db, y, m, 4000)
+    return await get_burn_rate(db, y, m)
 
 
 @router.get('/subcategory_amounts')

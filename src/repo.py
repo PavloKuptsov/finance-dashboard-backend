@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import select, func, Integer, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .config import PREPARATORY_QUERIES_FILE
+from .config import PREPARATORY_QUERIES_FILE, MAX_TRANSACTION_AMOUNT_THRESHOLD, BURN_RATE_AMOUNT_THRESHOLD
 from .dataclasses import CashFlowMonth, TF, BurnRateDay, BurnRateMonth, CategoryAmount, Category, Account, Transaction
 from .models import AccountModel, Currency, CategoryModel, TransactionModel, TransactionType, CategoryType, \
     BalanceHistoryModel, DailyBalanceHistoryModel, DailyAccountCashflowModel
@@ -59,6 +59,7 @@ async def get_totals(db: AsyncSession, year: int, month: Optional[int]):
                   .where(TransactionModel.type == TransactionType.EXPENSE)
                   .where(TransactionModel.timestamp >= _from)
                   .where(TransactionModel.timestamp < _to)
+                  .where(TransactionModel.homogenized_amount < MAX_TRANSACTION_AMOUNT_THRESHOLD)
                   .where(TransactionModel.is_scheduled.is_(False)))
     q_incomes = (select(func.sum(TransactionModel.destination_amount))
                  .where(TransactionModel.type == TransactionType.INCOME)
@@ -87,6 +88,7 @@ async def get_cashflow(db: AsyncSession, year: int, month: Optional[int]):
             .where(TransactionModel.type == transaction_type)
             .where(TransactionModel.timestamp >= _from)
             .where(TransactionModel.timestamp < _to)
+            .where(amount_field < MAX_TRANSACTION_AMOUNT_THRESHOLD)
             .where(TransactionModel.is_scheduled.is_(False))
             .group_by(TF.MONTH)
             .order_by(TF.MONTH)
@@ -115,7 +117,7 @@ async def get_cashflow(db: AsyncSession, year: int, month: Optional[int]):
     return cashflow_dict
 
 
-async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], threshold=4000):
+async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int]):
     _from, _to = timeframe_to_timestamps(year, month)
     timeframe, key = (TF.DAY, 2) if month else (TF.MONTH, 1)
 
@@ -128,6 +130,7 @@ async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], thres
             .where(TransactionModel.type == TransactionType.EXPENSE)
             .where(TransactionModel.timestamp >= _from)
             .where(TransactionModel.timestamp < _to)
+            .where(TransactionModel.homogenized_amount < MAX_TRANSACTION_AMOUNT_THRESHOLD)
             .where(TransactionModel.is_scheduled.is_(False))
     )
 
@@ -141,7 +144,8 @@ async def get_burn_rate(db: AsyncSession, year: int, month: Optional[int], thres
     date_range = range(min(dict_raw.keys()) if dict_raw.keys() else 1,
                        max(dict_raw.keys()) + 1 if dict_raw.keys() else 13)
 
-    q_adjusted = q_base.where(func.abs(TransactionModel.homogenized_amount) < threshold).group_by(timeframe)
+    q_adjusted = (q_base.where(func.abs(TransactionModel.homogenized_amount) < BURN_RATE_AMOUNT_THRESHOLD)
+                  .group_by(timeframe))
     res_adjusted = await db.execute(q_adjusted)
     result_adjusted = [i._tuple() for i in res_adjusted]
     dict_adjusted = {res[key]: res for res in result_adjusted}
@@ -190,6 +194,7 @@ async def get_subcategory_amounts(db: AsyncSession, year: int, month: Optional[i
          .where(TransactionModel.type == TransactionType.EXPENSE)
          .where(TransactionModel.timestamp >= _from)
          .where(TransactionModel.timestamp < _to)
+         .where(TransactionModel.homogenized_amount < MAX_TRANSACTION_AMOUNT_THRESHOLD)
          .where(TransactionModel.is_scheduled.is_(False))
          .where(CategoryModel.type == CategoryType.EXPENSE)
          .group_by(CategoryModel.name))
