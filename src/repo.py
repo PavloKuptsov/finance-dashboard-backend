@@ -409,7 +409,7 @@ async def compile_daily_balance_history(db: AsyncSession):
     min_datetime = await get_first_transaction_timestamp(db) + timedelta(days=1)
     current_datetime = datetime(min_datetime.year, min_datetime.month, min_datetime.day)
 
-    while current_datetime < datetime.now() + timedelta(days=1):
+    while current_datetime < datetime.now():
         balance = 0
         timestamp = int(current_datetime.timestamp())
         for acc in accounts_in_balance:
