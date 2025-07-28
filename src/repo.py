@@ -262,9 +262,9 @@ async def get_biggest_expenses(db: AsyncSession, year: int, month: Optional[int]
     return transactions
 
 
-async def get_savings(db: AsyncSession, year: int):
-    _from, _to = timeframe_to_timestamps(year)
-    separators = savings_separators(year)
+async def get_savings(db: AsyncSession, year: int, month: Optional[int]):
+    _from, _to = timeframe_to_timestamps(year, month)
+    separators = savings_separators(year, month)
     accounts = await get_accounts(db, currency_id=10051)
     account_names = {acc.id: acc.name for acc in accounts}
     colors = {acc.name: acc.color for acc in accounts}
@@ -431,7 +431,7 @@ async def get_daily_balance_history(db: AsyncSession, year: int, month: Optional
     q = (
         select(DailyBalanceHistoryModel)
         .where(DailyBalanceHistoryModel.timestamp >= _from)
-        .where(DailyBalanceHistoryModel.timestamp <= _to)
+        .where(DailyBalanceHistoryModel.timestamp < _to)
         .order_by(DailyBalanceHistoryModel.timestamp.asc())
     )
 

@@ -63,8 +63,8 @@ async def biggest_expenses(y: int, m: Optional[int] = None, db: AsyncSession = D
 
 
 @router.get('/savings')
-async def savings(y: int, db: AsyncSession = Depends(get_db)):
-    return await get_savings(db, y)
+async def savings(y: int, m: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    return await get_savings(db, y, m)
 
 
 @router.get('/daily_balances')
