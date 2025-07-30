@@ -10,8 +10,13 @@ def get_latest_db_file():
     return max([f.path for f in os.scandir(DATA_PATH) if f.path.endswith('.bak')])
 
 
-def timeframe_to_dates(year: int, month: Optional[int] = None) -> tuple[datetime, datetime]:
-    if month:
+def timeframe_to_dates(year: int,
+                       month: Optional[int] = None,
+                       day: Optional[int] = None) -> tuple[datetime, datetime]:
+    if day:
+        d_from = datetime(year, month, day)
+        d_to = d_from + timedelta(days=1)
+    elif month:
         if month == 12:
             d_from = datetime(year, month, 1)
             d_to = datetime(year + 1, 1, 1)
@@ -25,8 +30,10 @@ def timeframe_to_dates(year: int, month: Optional[int] = None) -> tuple[datetime
     return d_from, d_to
 
 
-def timeframe_to_timestamps(year: int, month: Optional[int] = None) -> tuple[int, int]:
-    dates = timeframe_to_dates(year, month)
+def timeframe_to_timestamps(year: int,
+                            month: Optional[int] = None,
+                            day: Optional[int] = None) -> tuple[int, int]:
+    dates = timeframe_to_dates(year, month, day)
     return int(dates[0].timestamp()), int(dates[1].timestamp())
 
 

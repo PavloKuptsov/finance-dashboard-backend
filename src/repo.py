@@ -234,6 +234,53 @@ async def get_category_amounts(db: AsyncSession, year: int, month: Optional[int]
     return category_amounts
 
 
+async def get_transactions(db: AsyncSession,
+                           year: int,
+                           month: Optional[int],
+                           day: Optional[int],
+                           transaction_type: Optional[int],
+                           account_id: Optional[int],
+                           category_id: Optional[int],
+                           threshold: Optional[int]):
+    _from, _to = timeframe_to_timestamps(year, month, day)
+    categories = await get_categories_dict(db, with_subcategories=True)
+    accounts = await get_accounts_dict(db)
+    if not transaction_type:
+        transaction_type = TransactionType.EXPENSE
+
+    q = (
+        select(TransactionModel)
+        .where(TransactionModel.type == transaction_type)
+        .where(TransactionModel.timestamp >= _from)
+        .where(TransactionModel.timestamp < _to)
+        .where(TransactionModel.is_scheduled.is_(False))
+        .order_by(TransactionModel.timestamp.desc())
+    )
+
+    if account_id:
+        q = q.where(TransactionModel.account_id == account_id)
+
+    if category_id:
+        q = q.where(TransactionModel.destination_id == category_id)
+
+    if threshold:
+        q = q.where(TransactionModel.homogenized_amount < threshold)
+
+    res = await db.execute(q)
+    transactions_db = res.scalars().all()
+    transactions = []
+    for tr in transactions_db:
+        transactions.append(Transaction(
+            id=tr.id,
+            date=tr.timestamp,
+            account=accounts[tr.account_id],
+            category=categories[tr.destination_id],
+            amount=tr.homogenized_amount,
+            notes=tr.comment
+        ))
+    return transactions
+
+
 async def get_biggest_expenses(db: AsyncSession, year: int, month: Optional[int], limit: int = 30):
     _from, _to = timeframe_to_timestamps(year, month)
     categories = await get_categories_dict(db, with_subcategories=True)

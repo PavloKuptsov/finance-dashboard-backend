@@ -7,7 +7,7 @@ from .app_data import app_data
 from .db import get_db
 from .repo import get_accounts, get_categories, get_currencies, get_totals, get_cashflow, get_burn_rate, \
     get_subcategory_amounts, get_category_amounts, get_biggest_expenses, get_savings, get_daily_balance_history, \
-    get_account_cashflow
+    get_account_cashflow, get_transactions
 
 router = APIRouter()
 
@@ -75,3 +75,15 @@ async def daily_balances(y: int, m: Optional[int] = None, db: AsyncSession = Dep
 @router.get('/account_cashflows')
 async def account_cashflows(y: int, m: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     return await get_account_cashflow(db, y, m)
+
+
+@router.get('/transactions')
+async def transactions(y: int,
+                       m: Optional[int] = None,
+                       d: Optional[int] = None,
+                       tr_type: Optional[int] = None,
+                       account_id: Optional[int] = None,
+                       category_id: Optional[int] = None,
+                       threshold: Optional[int] = None,
+                       db: AsyncSession = Depends(get_db)):
+    return await get_transactions(db, y, m, d, tr_type, account_id, category_id, threshold)
