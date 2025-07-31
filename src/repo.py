@@ -261,7 +261,8 @@ async def get_transactions(db: AsyncSession,
         q = q.where(TransactionModel.account_id == account_id)
 
     if category_id:
-        q = q.where(TransactionModel.destination_id == category_id)
+        category_ids = [cat.id for cat in categories.values() if cat.parent_category_id == category_id] + [category_id]
+        q = q.where(TransactionModel.destination_id.in_(category_ids))
 
     if threshold:
         q = q.where(TransactionModel.homogenized_amount < threshold)
